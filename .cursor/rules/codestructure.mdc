@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+project-root/
+│
+├── app.py                     # Ponto de entrada (ex: para Streamlit ou Dash)
+├── requirements.txt           # Dependências
+├── README.md
+│
+├── data/
+│   ├── metadados.xlsx
+│   └── vendas.csv
+│
+├── src/
+│   ├── __init__.py
+│   ├── data_loader.py         # Leitura dos ficheiros Excel/CSV
+│   ├── preprocess.py          # Agregações, normalizações, transformações
+│   ├── abc_xyz.py             # Lógica da análise ABC/XYZ
+│   ├── intermitencia.py       # Lógica para classificar comportamento (smooth, lumpy…)
+│   └── visualizations.py      # Funções para criar gráficos (Plotly/Figures)
+│
+└── utils/
+    ├── filters.py             # Filtros aplicáveis aos dados
+    └── helpers.py             # Funções auxiliares (ex: normalização)

@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+When I ask to extract data from [2022-2025.xlsx](mdc:2022-2025.xlsx) remember that the first row is the title.
+
+Also I only want you to take into account the following 15 "Familia":
+Cream Cracker
+Maria
+Wafer
+Sortido
+Cobertas de Chocolate
+Água e Sal
+Digestiva
+Recheada
+Circus
+Tartelete
+Torrada
+Flocos de Neve
+Integral
+Mentol
+Aliança
+
+Structure of the excel : main titles- "Gestor Comercial", "Familia", "Sub Familia", "Gramagem", "Formato", "Material Mapeado" (SKU), "Valor Kg" (The sales data we are analysing) and "Data do faturamento" (the time component of our time series)

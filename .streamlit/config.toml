@@ -1,0 +1,19 @@
+[theme]
+# primary_color = "#1E88E5"
+# backgroundColor = "#111520"
+# secondaryBackgroundColor = "#1E2130"
+# textColor = "#FFFFFF"
+
+[server]
+# Esconder os arquivos de código da interface
+enableStaticServing = true
+runOnSave = true
+
+[browser]
+# Abrir o navegador automaticamente
+serverAddress = "localhost"
+serverPort = 8501
+
+[deprecation]
+# Desativar avisos de depreciação
+showFileWatcherError = false 

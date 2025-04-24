@@ -1,0 +1,11 @@
+# Configuração de páginas do Streamlit
+# Este arquivo especifica a ordem e visibilidade das páginas
+
+# Oculta os arquivos de Python para não aparecer na barra lateral
+[pages]
+"app.py" = false
+"abc_xyz_page.py" = false
+"aggregated_series.py" = false
+"overview.py" = false
+"time_series.py" = false
+"intermittency_page.py" = false 
