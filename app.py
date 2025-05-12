@@ -29,6 +29,7 @@ st.set_page_config(
 # --- Page Imports --- (Moved Here)
 from pages import overview, time_series, aggregated_series, abc_xyz_page, intermittency_page, weighted_forecast_page
 from pages import forecasting_methods_page # <-- Import the new page
+from pages import results_comparison_page # Add this import
 
 # CSS adicional para forçar a sidebar ao topo absoluto
 st.markdown("""
@@ -583,7 +584,8 @@ def main():
             {"id": "Análise ABC/XYZ", "icon": "📋", "label": "Análise ABC/XYZ"},
             {"id": "Análise de Intermitência", "icon": "⚡", "label": "Análise de Intermitência"},
             {"id": "Previsão Ponderada", "icon": "⚖️", "label": "Previsão Ponderada"},
-            {"id": "Métodos de Forecasting", "icon": "🔮", "label": "Métodos de Forecasting"}
+            {"id": "Métodos de Forecasting", "icon": "🔮", "label": "Métodos de Forecasting"},
+            {"id": "Resultados e Comparações", "icon": "🆚", "label": "Resultados e Comparações"}
         ]
         
         # CSS global para todos os botões de uma vez, evitando alterações dinâmicas que movem os botões
@@ -699,6 +701,8 @@ def main():
         weighted_forecast_page.render()
     elif st.session_state.current_page == "Métodos de Forecasting":
         forecasting_methods_page.render()
+    elif st.session_state.current_page == "Resultados e Comparações":
+        results_comparison_page.render()
 
 if __name__ == "__main__":
     main() 

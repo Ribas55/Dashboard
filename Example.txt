@@ -1,0 +1,146 @@
+import os
+import sys
+from pathlib import Path
+import pandas as pd
+
+# Ensure the project root is in the Python path
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from src.data.excel_reader import ExcelReader
+from src.analysis.monthly_budget_forecast import MonthlyBudgetForecast
+from src.analysis.sku_budget_forecast import SKUBudgetForecast # Import the new class
+
+# --- Configuration ---
+SALES_FILE_PATH = "Excel_files/2022-2025.xlsx"
+SALES_SHEET_NAME = "BD_Vendas"  # Corrected sheet name
+BUDGET_FILE_PATH = "Excel_files/Orçamento2022-2025.xlsx" # Corrected budget file path
+BUDGET_SHEET_NAME = "Folha1"     # Corrected budget sheet name
+OUTPUT_DIR = "output"
+OUTPUT_FILENAME = "sku_budget_forecast_results.xlsx"
+DEBUG_OUTPUT_FILENAME = "sku_budget_forecast_DEBUG.xlsx" # Re-add debug filename
+TARGET_MONTHS = [(2024, month) for month in range(7, 13)] # Default: July-Dec 2024
+
+# Define the 15 families to focus on
+SELECTED_FAMILIES = [
+    "Cream Cracker", "Maria", "Wafer", "Sortido", "Água e Sal",
+    "Digestiva", "Recheada", "Cobertas de Chocolate", "Mentol",
+    "Integral", "Circus", "Tartelete", "Aliança", "Flocos de Neve", "Torrada"
+]
+
+def run_sku_budget_forecast():
+    """
+    Loads data, runs the monthly budget forecast, then the SKU budget forecast, and saves results.
+    """
+    print("\n--- Running SKU-Level Budget Forecast ---")
+    
+    # --- 1. Load Data ---
+    print(f"Loading sales data from: {SALES_FILE_PATH} (Sheet: {SALES_SHEET_NAME})")
+    sales_reader = ExcelReader(SALES_FILE_PATH)
+    try:
+        sales_data = sales_reader.read_excel(sheet_name=SALES_SHEET_NAME)
+        if sales_data is None or sales_data.empty:
+            print(f"Error: Failed to load sales data from sheet '{SALES_SHEET_NAME}'. Check file and sheet name.")
+            return
+        print("Sales data loaded successfully.")
+    except FileNotFoundError:
+        print(f"Error: Sales file not found at {SALES_FILE_PATH}")
+        return
+    except Exception as e:
+        print(f"Error loading sales data: {e}")
+        return
+
+    # Filter sales data for selected families
+    initial_sales_rows = len(sales_data)
+    sales_data = sales_data[sales_data['Familia'].isin(SELECTED_FAMILIES)].copy()
+    print(f"Filtered sales data to {len(sales_data)} rows based on {len(SELECTED_FAMILIES)} selected families.")
+
+    print(f"Loading budget data from: {BUDGET_FILE_PATH} (Sheet: {BUDGET_SHEET_NAME})") # Use BUDGET_FILE_PATH
+    # Load budget data from its specific file
+    budget_reader = ExcelReader(BUDGET_FILE_PATH) # Use BUDGET_FILE_PATH
+    try:
+        # Read the first sheet by default, as there is only one --> Revert this, read by name now
+        budget_data = budget_reader.read_excel(sheet_name=BUDGET_SHEET_NAME) 
+        if budget_data is None or budget_data.empty:
+             print(f"Warning: Failed to load budget data from sheet '{BUDGET_SHEET_NAME}' in {BUDGET_FILE_PATH}. Budget component might be zero.")
+             # Create an empty DataFrame with expected columns if needed by MonthlyBudgetForecast
+             # Or adjust MonthlyBudgetForecast to handle None budget_data gracefully
+             budget_data = pd.DataFrame(columns=['Cod. Mapeados', 'Segmento', 'Gestor Comercial', 'KG', 'Ano_Mês']) # Example
+        else:
+            print("Budget data loaded successfully.")
+    except FileNotFoundError:
+         # This case should technically be caught by sales data loading if same file
+         print(f"Error: Budget file not found at {BUDGET_FILE_PATH}") # Use BUDGET_FILE_PATH
+         return
+    except Exception as e:
+        # Handle cases where the sheet might not exist
+        print(f"Warning: Error loading budget data from sheet '{BUDGET_SHEET_NAME}': {e}. Proceeding without budget data.")
+        budget_data = pd.DataFrame(columns=['Cod. Mapeados', 'Segmento', 'Gestor Comercial', 'KG', 'Ano_Mês']) # Fallback
+
+    # Filter budget data for selected families (using 'Segmento' column before rename)
+    if not budget_data.empty and 'Segmento' in budget_data.columns:
+        initial_budget_rows = len(budget_data)
+        budget_data = budget_data[budget_data['Segmento'].isin(SELECTED_FAMILIES)].copy()
+        print(f"Filtered budget data to {len(budget_data)} rows based on selected families.")
+
+    # --- 2. Calculate Family-Level Budget Forecast ---
+    print("Calculating family-level budget forecasts...")
+    try:
+        monthly_budget_forecaster = MonthlyBudgetForecast(sales_data, budget_data)
+        family_budget_forecasts = monthly_budget_forecaster.calculate_forecast(target_months=TARGET_MONTHS)
+        print("Family-level budget forecasts calculated.")
+    except Exception as e:
+        print(f"Error during family-level budget forecast calculation: {e}")
+        return
+
+    # --- 3. Calculate SKU-Level Budget Forecast ---
+    print("Calculating SKU-level budget forecasts (disaggregation)...")
+    debug_info = [] # Initialize debug_info list
+    try:
+        sku_budget_forecaster = SKUBudgetForecast(sales_data, family_budget_forecasts)
+        # Capture both results and debug info
+        sku_level_forecasts, debug_info = sku_budget_forecaster.calculate_sku_budget_forecasts(target_months=TARGET_MONTHS)
+        print("SKU-level budget forecasts calculated.")
+    except Exception as e:
+        print(f"Error during SKU-level budget forecast calculation: {e}")
+        return
+
+    # --- 4. Export Results ---
+    if sku_level_forecasts:
+        output_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
+        print(f"Exporting SKU-level budget forecast results to: {output_path}")
+        try:
+            # Ensure output directory exists
+            os.makedirs(OUTPUT_DIR, exist_ok=True) 
+            sku_budget_forecaster.export_to_excel(sku_level_forecasts, output_path=output_path)
+        except Exception as e:
+            print(f"Error exporting results to Excel: {e}")
+    else:
+        print("No SKU-level budget forecasts were generated to export.")
+
+    # --- 5. Export Debug Info --- (Re-add this block)
+    if debug_info:
+        debug_output_path = os.path.join(OUTPUT_DIR, DEBUG_OUTPUT_FILENAME)
+        print(f"Exporting debug information to: {debug_output_path}")
+        try:
+            debug_df = pd.DataFrame(debug_info)
+            # Ensure output directory exists
+            os.makedirs(OUTPUT_DIR, exist_ok=True) 
+            debug_df.to_excel(debug_output_path, index=False)
+        except Exception as e:
+            print(f"Error exporting debug info to Excel: {e}")
+    else:
+        print("No debug information was generated to export.")
+
+    print("--- SKU-Level Budget Forecast Run Complete ---")
+
+
+if __name__ == "__main__":
+    # Set working directory to project root if run directly
+    if not os.path.exists(os.path.basename(SALES_FILE_PATH)):
+       script_dir = Path(__file__).parent
+       os.chdir(script_dir.parent) # Move up to project root (src/../)
+       print(f"Changed working directory to: {os.getcwd()}")
+
+    run_sku_budget_forecast() 
