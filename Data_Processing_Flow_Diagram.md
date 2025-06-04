@@ -2,16 +2,16 @@
 ## SKU Sales Dashboard - Complete Data Pipeline
 
 ```mermaid
-graph TD
+flowchart TD
     %% Data Sources
     A[Excel Files] --> B1[2022-2025.xlsx<br/>Main Sales Data]
     A --> B2[Orçamento2022-2025.xlsx<br/>Budget Data]
     A --> B3[skus_mercado_especifico.xlsx<br/>Special Market SKUs]
     
     %% Initial Data Loading - data_loader.py
-    B1 --> C1[load_sales_data()]
-    B2 --> C2[load_budget_data()]
-    B3 --> C3[get_mercado_especifico_skus()]
+    B1 --> C1[load_sales_data function]
+    B2 --> C2[load_budget_data function]
+    B3 --> C3[get_mercado_especifico_skus function]
     
     %% Data Loading Processing
     C1 --> D1[Column Mapping<br/>& Data Cleaning]
@@ -22,9 +22,9 @@ graph TD
     D1 --> E[Unified Sales DataFrame<br/>Columns: sku, family, subfamily,<br/>sales_value, invoice_date,<br/>commercial_manager, etc.]
     
     %% Filtering Layer - utils/filters.py
-    E --> F1[filter_dataframe()]
-    E --> F2[filter_date_range()]
-    E --> F3[filter_active_skus()]
+    E --> F1[filter_dataframe function]
+    E --> F2[filter_date_range function]
+    E --> F3[filter_active_skus function]
     
     %% Analysis Modules
     F1 --> G1[ABC/XYZ Analysis<br/>src/abc_xyz.py]
@@ -33,27 +33,27 @@ graph TD
     F1 --> G4[Forecasting Methods<br/>src/forecasting.py]
     
     %% ABC/XYZ Processing
-    G1 --> H1[classify_abc()<br/>Sales Volume Classification]
-    G1 --> H2[classify_xyz()<br/>Demand Variability Classification]
+    G1 --> H1[classify_abc function<br/>Sales Volume Classification]
+    G1 --> H2[classify_xyz function<br/>Demand Variability Classification]
     H1 --> H3[ABC Categories: A, B, C<br/>Based on cumulative sales %]
     H2 --> H4[XYZ Categories: X, Y, Z<br/>Based on coefficient of variation]
-    H3 --> I1[create_abc_xyz_matrix()]
+    H3 --> I1[create_abc_xyz_matrix function]
     H4 --> I1
     
     %% Intermittency Processing
     G2 --> J1[Calculate CV² & ADI<br/>for each SKU]
     J1 --> J2[Classify Demand Patterns:<br/>Smooth, Intermittent,<br/>Erratic, Lumpy]
-    J2 --> J3[create_intermittency_matrix()]
+    J2 --> J3[create_intermittency_matrix function]
     
     %% Time Series Processing
-    G3 --> K1[create_aggregated_time_series()]
+    G3 --> K1[create_aggregated_time_series function]
     K1 --> K2[Period Aggregation<br/>Daily/Monthly/Quarterly]
     K2 --> K3[Optional Normalization<br/>utils/helpers.py]
     K3 --> K4[Time Series Visualization]
     
     %% Forecasting Processing
     G4 --> L1[Method Selection<br/>ARIMA, SES, SMA, TSB,<br/>XGBoost, Linear Regression]
-    L1 --> L2[generate_forecasts()]
+    L1 --> L2[generate_forecasts function]
     L2 --> L3[Forecast Calculations<br/>src/analysis/ modules]
     L3 --> L4[Forecast Results DataFrame]
     
