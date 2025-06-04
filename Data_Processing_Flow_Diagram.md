@@ -2,6 +2,7 @@
 ## SKU Sales Dashboard - Data Processing Pipeline
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#333333', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondBkg': '#ffffff', 'tertiaryTextColor': '#000000'}}}%%
 flowchart TD
     %% Data Extraction
     A[Raw Data Sources] --> B[Data Loading<br/>pandas.read_excel]
@@ -37,11 +38,11 @@ flowchart TD
     J --> K[Chart Data Preparation<br/>plotly.graph_objects]
     K --> L[Interactive Visualizations<br/>plotly.express]
     
-    %% Styling
-    classDef extraction fill:#e3f2fd
-    classDef processing fill:#f3e5f5
-    classDef analysis fill:#e8f5e8
-    classDef output fill:#fff3e0
+    %% Styling with vibrant clean colors
+    classDef extraction fill:#4285f4,stroke:#1a73e8,stroke-width:2px,color:#ffffff
+    classDef processing fill:#34a853,stroke:#137333,stroke-width:2px,color:#ffffff
+    classDef analysis fill:#ff9800,stroke:#e68900,stroke-width:2px,color:#ffffff
+    classDef output fill:#9c27b0,stroke:#7b1fa2,stroke-width:2px,color:#ffffff
     
     class A,B extraction
     class C,D,E,F,G processing
