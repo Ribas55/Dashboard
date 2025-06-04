@@ -2,7 +2,7 @@
 ## SKU Sales Dashboard - Data Processing Pipeline
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#333333', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondBkg': '#ffffff', 'tertiaryTextColor': '#000000'}}}%%
+%%{init: {'theme':'default', 'themeVariables': {'fontFamily': 'Arial', 'fontSize': '14px', 'lineColor': '#000000', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#333333', 'background': '#ffffff', 'mainBkg': '#ffffff', 'cScale0': '#4285f4', 'cScale1': '#34a853', 'cScale2': '#ff9800', 'cScale3': '#9c27b0'}}}%%
 flowchart TD
     %% Data Extraction
     A[Raw Data Sources] --> B[Data Loading<br/>pandas.read_excel]
@@ -38,11 +38,11 @@ flowchart TD
     J --> K[Chart Data Preparation<br/>plotly.graph_objects]
     K --> L[Interactive Visualizations<br/>plotly.express]
     
-    %% Styling with vibrant clean colors
-    classDef extraction fill:#4285f4,stroke:#1a73e8,stroke-width:2px,color:#ffffff
-    classDef processing fill:#34a853,stroke:#137333,stroke-width:2px,color:#ffffff
-    classDef analysis fill:#ff9800,stroke:#e68900,stroke-width:2px,color:#ffffff
-    classDef output fill:#9c27b0,stroke:#7b1fa2,stroke-width:2px,color:#ffffff
+    %% Styling with vibrant clean colors and black borders
+    classDef extraction fill:#4285f4,stroke:#000000,stroke-width:3px,color:#ffffff
+    classDef processing fill:#34a853,stroke:#000000,stroke-width:3px,color:#ffffff
+    classDef analysis fill:#ff9800,stroke:#000000,stroke-width:3px,color:#ffffff
+    classDef output fill:#9c27b0,stroke:#000000,stroke-width:3px,color:#ffffff
     
     class A,B extraction
     class C,D,E,F,G processing
