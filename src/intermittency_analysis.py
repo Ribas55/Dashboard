@@ -257,12 +257,12 @@ def create_intermittency_matrix(data, custom_title=None):
     )
     
     # Update layout
-    title = custom_title if custom_title else "Matriz de Classificação de Intermitência"
+    title = custom_title if custom_title else "Intermittency Classification Matrix"
     
     fig.update_layout(
         title=title,
-        xaxis_title="Tempo Médio Entre Demandas (ADI)",
-        yaxis_title="Coeficiente de Variação (CV²)",
+        xaxis_title="Average Demand Interval (ADI)",
+        yaxis_title="Squared Coefficient of Variation (CV²)",
         xaxis=dict(
             range=[0, max_adi],
             tickvals=[0, adi_threshold, max_adi],
@@ -273,8 +273,8 @@ def create_intermittency_matrix(data, custom_title=None):
             tickvals=[0, cv2_threshold, max_cv2],
             ticktext=["0", f"{cv2_threshold}", f"{max_cv2:.1f}"]
         ),
-        legend_title="Categoria",
-        template="plotly_dark",
+        legend_title="Category",
+        template="plotly_white",
         hovermode="closest",
         height=500
     )
@@ -354,9 +354,9 @@ def create_quadrant_chart(data):
     # Update layout
     fig.update_layout(
         showlegend=False,
-        xaxis_title="Categoria",
-        yaxis_title="Quantidade de SKUs",
-        template="plotly_dark",
+        xaxis_title="Category",
+        yaxis_title="Number of SKUs",
+        template="plotly_white",
         height=300,
         margin=dict(l=50, r=30, t=30, b=50)
     )

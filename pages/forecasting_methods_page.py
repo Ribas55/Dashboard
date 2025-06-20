@@ -293,6 +293,8 @@ def render(): # Wrap existing code in a render function
             "SES (alpha=0.1)", "SES (alpha=0.3)",
             "SMA (N=1)", "SMA (N=2)", "SMA (N=3)", "SMA (N=6)", "SMA (N=9)",
             "TSB (alpha_d=0.1, alpha_p=0.1)", # Added TSB option
+            "XGBoost (lags=2)", "XGBoost (lags=3)", "XGBoost (lags=6)", # Added XGBoost options
+            "Linear Regression (lags=2)", "Linear Regression (lags=3)", "Linear Regression (lags=6)", # Added Linear Regression options
             "Previsão Ponderada por SKU" # Added SKU Weighted Forecast
         ]
         # Get default method index from temporary load state if available

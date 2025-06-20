@@ -52,6 +52,7 @@ def load_sales_data(
     # Renomear colunas para manter compatibilidade com o resto do código
     column_mapping = {
         'Data do faturamento': 'invoice_date',
+        'Categoria': 'categoria',
         'Familia': 'family',
         'Sub Familia': 'subfamily',
         'Material Mapeado': 'sku',
@@ -88,7 +89,7 @@ def get_metadata(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with unique SKU metadata
     """
     # Select only metadata columns and drop duplicates based on SKU
-    metadata_columns = [col for col in ["commercial_manager", "family", "subfamily", 
+    metadata_columns = [col for col in ["commercial_manager", "categoria", "family", "subfamily", 
                                        "weight", "format", "sku"] 
                         if col in df.columns]
     

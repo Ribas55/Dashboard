@@ -25,6 +25,7 @@ def render():
     if 'time_series_filters' not in st.session_state:
         st.session_state.time_series_filters = {
             'commercial_manager': None,
+            'categoria': None,
             'family': None,
             'subfamily': None,
             'format': None,
@@ -33,25 +34,17 @@ def render():
         }
     
     # Ensure these columns exist in the dataframe
-    required_cols = ['family', 'subfamily', 'format', 'weight', 'sku']
+    required_cols = ['categoria', 'family', 'subfamily', 'format', 'weight', 'sku']
     for col in required_cols:
         if col not in st.session_state.sales_data.columns:
             st.error(f"Coluna '{col}' não encontrada nos dados. Por favor, verifique o formato dos dados.")
             return
     
-    # Create filters section
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # Create filters section - now with 7 columns for the new categoria filter
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     
     # Get the unique values for each filter
     df = st.session_state.sales_data
-    
-    # Lista das 15 famílias específicas
-    specific_families = [
-        "Cream Cracker", "Maria", "Wafer", "Sortido", 
-        "Cobertas de Chocolate", "Água e Sal", "Digestiva",
-        "Recheada", "Circus", "Tartelete", "Torrada",
-        "Flocos de Neve", "Integral", "Mentol", "Aliança"
-    ]
     
     # Gestor Comercial filter
     with col1:
@@ -75,22 +68,45 @@ def render():
             manager_filter = None
             st.warning("Campo 'Gestor Comercial' não encontrado nos dados.")
     
-    # Family filter
+    # Categoria filter
     with col2:
-        # Apenas as 15 famílias específicas ao invés de todas as famílias
-        families = sorted(specific_families)
+        filtered_df = df
         
-        # If manager filter is applied, filter the families
+        # Apply manager filter if selected
         if manager_filter and 'commercial_manager' in df.columns:
-            family_df = df[df['commercial_manager'] == manager_filter]
-            # Only show families that belong to this manager and are in the specific families list
-            available_families = sorted(list(set(family_df['family'].unique().tolist()) & set(specific_families)))
-            if not available_families:
-                available_families = families  # Fallback to all families if none match
-        else:
-            available_families = families
+            filtered_df = filtered_df[filtered_df['commercial_manager'] == manager_filter]
         
-        family_options = ['Todas'] + available_families
+        # Get categorias from filtered data
+        categorias = sorted(filtered_df['categoria'].dropna().unique().tolist())
+        categoria_options = ['Todas'] + categorias
+        selected_categoria = st.selectbox(
+            "Categoria",
+            options=categoria_options,
+            index=0,
+            key="categoria_selector"
+        )
+        
+        # Update session state
+        if selected_categoria == 'Todas':
+            categoria_filter = None
+        else:
+            categoria_filter = selected_categoria
+    
+    # Family filter (now depends on categoria)
+    with col3:
+        filtered_df = df
+        
+        # Apply manager filter if selected
+        if manager_filter and 'commercial_manager' in df.columns:
+            filtered_df = filtered_df[filtered_df['commercial_manager'] == manager_filter]
+            
+        # Apply categoria filter if selected
+        if categoria_filter:
+            filtered_df = filtered_df[filtered_df['categoria'] == categoria_filter]
+        
+        # Get families from filtered data (no longer restricted to specific 15 families)
+        families = sorted(filtered_df['family'].dropna().unique().tolist())
+        family_options = ['Todas'] + families
         selected_family = st.selectbox(
             "Família",
             options=family_options,
@@ -105,23 +121,22 @@ def render():
             family_filter = selected_family
     
     # Sub Family filter (depends on family)
-    with col3:
+    with col4:
         filtered_df = df
         
         # Apply manager filter if selected
         if manager_filter and 'commercial_manager' in df.columns:
             filtered_df = filtered_df[filtered_df['commercial_manager'] == manager_filter]
             
+        # Apply categoria filter if selected
+        if categoria_filter:
+            filtered_df = filtered_df[filtered_df['categoria'] == categoria_filter]
+            
         # Apply family filter if selected
         if family_filter:
-            # Filter subfamilies based on selected family
             filtered_df = filtered_df[filtered_df['family'] == family_filter]
-        else:
-            # Apenas subfamílias das 15 famílias específicas ao invés de todas as subfamílias
-            filtered_df = filtered_df[filtered_df['family'].isin(specific_families)]
         
-        subfamilies = filtered_df['subfamily'].unique().tolist()
-        subfamilies.sort()
+        subfamilies = sorted(filtered_df['subfamily'].dropna().unique().tolist())
         subfamily_options = ['Todas'] + subfamilies
         
         selected_subfamily = st.selectbox(
@@ -138,28 +153,27 @@ def render():
             subfamily_filter = selected_subfamily
     
     # Format filter (depends on subfamily)
-    with col4:
+    with col5:
         filtered_df = df
         
         # Apply manager filter if selected
         if manager_filter and 'commercial_manager' in df.columns:
             filtered_df = filtered_df[filtered_df['commercial_manager'] == manager_filter]
             
+        # Apply categoria filter if selected
+        if categoria_filter:
+            filtered_df = filtered_df[filtered_df['categoria'] == categoria_filter]
+            
         # Apply family filter if selected
         if family_filter:
             filtered_df = filtered_df[filtered_df['family'] == family_filter]
-        else:
-            # Se nenhuma família selecionada, filtrar apenas as 15 famílias específicas
-            filtered_df = filtered_df[filtered_df['family'].isin(specific_families)]
         
         # Apply subfamily filter if selected
         if subfamily_filter:
             filtered_df = filtered_df[filtered_df['subfamily'] == subfamily_filter]
         
         # Get formats from filtered data
-        formats = filtered_df['format'].unique().tolist()
-        formats.sort()
-        
+        formats = sorted(filtered_df['format'].dropna().unique().tolist())
         format_options = ['Todos'] + formats
         selected_format = st.selectbox(
             "Formato",
@@ -175,19 +189,20 @@ def render():
             format_filter = selected_format
     
     # Weight filter (depends on format)
-    with col5:
+    with col6:
         filtered_df = df
         
         # Apply manager filter if selected
         if manager_filter and 'commercial_manager' in df.columns:
             filtered_df = filtered_df[filtered_df['commercial_manager'] == manager_filter]
             
+        # Apply categoria filter if selected
+        if categoria_filter:
+            filtered_df = filtered_df[filtered_df['categoria'] == categoria_filter]
+            
         # Apply previous filters
         if family_filter:
             filtered_df = filtered_df[filtered_df['family'] == family_filter]
-        else:
-            # Se nenhuma família selecionada, filtrar apenas as 15 famílias específicas
-            filtered_df = filtered_df[filtered_df['family'].isin(specific_families)]
         
         if subfamily_filter:
             filtered_df = filtered_df[filtered_df['subfamily'] == subfamily_filter]
@@ -196,9 +211,7 @@ def render():
             filtered_df = filtered_df[filtered_df['format'] == format_filter]
         
         # Get weights from filtered data
-        weights = filtered_df['weight'].unique().tolist()
-        weights.sort()
-        
+        weights = sorted(filtered_df['weight'].dropna().unique().tolist())
         weight_options = ['Todas'] + weights
         selected_weight = st.selectbox(
             "Gramagem",
@@ -214,19 +227,20 @@ def render():
             weight_filter = selected_weight
     
     # SKU filter (depends on all previous filters)
-    with col6:
+    with col7:
         filtered_df = df
         
         # Apply manager filter if selected
         if manager_filter and 'commercial_manager' in df.columns:
             filtered_df = filtered_df[filtered_df['commercial_manager'] == manager_filter]
             
+        # Apply categoria filter if selected
+        if categoria_filter:
+            filtered_df = filtered_df[filtered_df['categoria'] == categoria_filter]
+            
         # Apply all previous filters
         if family_filter:
             filtered_df = filtered_df[filtered_df['family'] == family_filter]
-        else:
-            # Se nenhuma família selecionada, filtrar apenas as 15 famílias específicas
-            filtered_df = filtered_df[filtered_df['family'].isin(specific_families)]
         
         if subfamily_filter:
             filtered_df = filtered_df[filtered_df['subfamily'] == subfamily_filter]
@@ -238,9 +252,7 @@ def render():
             filtered_df = filtered_df[filtered_df['weight'] == weight_filter]
         
         # Get SKUs from filtered data
-        skus = filtered_df['sku'].unique().tolist()
-        skus.sort()
-        
+        skus = sorted(filtered_df['sku'].dropna().unique().tolist())
         sku_options = ['All SKUs'] + skus
         selected_sku = st.selectbox(
             "SKU",
@@ -258,6 +270,7 @@ def render():
     # Atualizar st.session_state.time_series_filters com os novos valores
     st.session_state.time_series_filters = {
         'commercial_manager': manager_filter,
+        'categoria': categoria_filter,
         'family': family_filter,
         'subfamily': subfamily_filter,
         'format': format_filter,
@@ -300,11 +313,8 @@ def render():
     
     # Filter data based on selections
     filtered_data = df.copy()
-    
-    # Filtrar para incluir apenas as 15 famílias específicas
-    filtered_data = filtered_data[filtered_data['family'].isin(specific_families)]
 
-    # Aplicar os filtros selecionados pelo usuário
+    # Aplicar os filtros selecionados pelo usuário (sem restrição às 15 famílias específicas)
     for filter_key, filter_value in st.session_state.time_series_filters.items():
         if filter_value is not None and filter_key in filtered_data.columns:
             filtered_data = filtered_data[filtered_data[filter_key] == filter_value]
@@ -316,10 +326,12 @@ def render():
         chart_title = f"Séries Temporais - Subfamília: {st.session_state.time_series_filters['subfamily']}"
     elif st.session_state.time_series_filters['family']:
         chart_title = f"Séries Temporais - Família: {st.session_state.time_series_filters['family']}"
+    elif st.session_state.time_series_filters['categoria']:
+        chart_title = f"Séries Temporais - Categoria: {st.session_state.time_series_filters['categoria']}"
     elif st.session_state.time_series_filters['commercial_manager'] and 'commercial_manager' in filtered_data.columns:
         chart_title = f"Séries Temporais - Gestor: {st.session_state.time_series_filters['commercial_manager']}"
     else:
-        chart_title = "Séries Temporais por Família"
+        chart_title = "Séries Temporais por Categoria"
     
     # Create visualization
     if not filtered_data.empty:
@@ -355,11 +367,21 @@ def render():
                 normalize=normalize,
                 show_only_total=show_only_total
             )
-        else:
-            # No specific filters, group by family
+        elif st.session_state.time_series_filters['categoria'] and not st.session_state.time_series_filters['family']:
+            # Only categoria selected, group by family
             fig = create_aggregated_time_series(
                 filtered_data,
                 group_by='family',
+                period="M",
+                reference_date=pd.Timestamp('2025-02-01'),  # Set February 2025 as reference
+                normalize=normalize,
+                show_only_total=show_only_total
+            )
+        else:
+            # No specific filters, group by categoria
+            fig = create_aggregated_time_series(
+                filtered_data,
+                group_by='categoria',
                 period="M",
                 reference_date=pd.Timestamp('2025-02-01'),  # Set February 2025 as reference
                 normalize=normalize,
@@ -408,7 +430,7 @@ def render():
         # Calculate key metrics
         mean_monthly = monthly_data['sales_value'].mean()
         
-        # For maximum/minimum, find which family/subfamily/SKU it belongs to
+        # For maximum/minimum, find which categoria/family/subfamily/SKU it belongs to
         # Max calculation
         if st.session_state.time_series_filters['sku']:
             # Single SKU selected - find the max month
@@ -435,14 +457,23 @@ def render():
             max_entity = max_row['subfamily']
             max_entity_type = "Subfamília"
             max_date_str = max_row['month'].strftime('%b-%y')
-        else:
-            # Nothing selected - find max family
+        elif st.session_state.time_series_filters['categoria']:
+            # Categoria selected - find max family
             monthly_family_data = filtered_data.groupby(['month', 'family'])['sales_value'].sum().reset_index()
             monthly_family_data = monthly_family_data.sort_values('sales_value', ascending=False)
             max_row = monthly_family_data.iloc[0]
             max_value = max_row['sales_value']
             max_entity = max_row['family']
             max_entity_type = "Família"
+            max_date_str = max_row['month'].strftime('%b-%y')
+        else:
+            # Nothing selected - find max categoria
+            monthly_categoria_data = filtered_data.groupby(['month', 'categoria'])['sales_value'].sum().reset_index()
+            monthly_categoria_data = monthly_categoria_data.sort_values('sales_value', ascending=False)
+            max_row = monthly_categoria_data.iloc[0]
+            max_value = max_row['sales_value']
+            max_entity = max_row['categoria']
+            max_entity_type = "Categoria"
             max_date_str = max_row['month'].strftime('%b-%y')
         
         # Min calculation
@@ -487,8 +518,8 @@ def render():
                 min_entity = "N/A"
                 min_entity_type = "Subfamília"
                 min_date_str = ""
-        else:
-            # Nothing selected - find min family
+        elif st.session_state.time_series_filters['categoria']:
+            # Categoria selected - find min family
             monthly_family_data = filtered_data.groupby(['month', 'family'])['sales_value'].sum().reset_index()
             # Filter out zeros or very small values
             monthly_family_data = monthly_family_data[monthly_family_data['sales_value'] > 0.01]
@@ -503,6 +534,23 @@ def render():
                 min_value = 0
                 min_entity = "N/A"
                 min_entity_type = "Família"
+                min_date_str = ""
+        else:
+            # Nothing selected - find min categoria
+            monthly_categoria_data = filtered_data.groupby(['month', 'categoria'])['sales_value'].sum().reset_index()
+            # Filter out zeros or very small values
+            monthly_categoria_data = monthly_categoria_data[monthly_categoria_data['sales_value'] > 0.01]
+            monthly_categoria_data = monthly_categoria_data.sort_values('sales_value')
+            if not monthly_categoria_data.empty:
+                min_row = monthly_categoria_data.iloc[0]
+                min_value = min_row['sales_value']
+                min_entity = min_row['categoria']
+                min_entity_type = "Categoria"
+                min_date_str = min_row['month'].strftime('%b-%y')
+            else:
+                min_value = 0
+                min_entity = "N/A"
+                min_entity_type = "Categoria"
                 min_date_str = ""
         
         # Calcular tendência CAGR comparando 2023 e 2024
@@ -592,6 +640,8 @@ def render():
             context_label = f"Subfamília: {st.session_state.time_series_filters['subfamily']}"
         elif st.session_state.time_series_filters['family']:
             context_label = f"Família: {st.session_state.time_series_filters['family']}"
+        elif st.session_state.time_series_filters['categoria']:
+            context_label = f"Categoria: {st.session_state.time_series_filters['categoria']}"
         else:
             context_label = "Total"
             

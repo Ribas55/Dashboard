@@ -21,6 +21,7 @@ def calculate_sku_ponderation(
 ) -> pd.DataFrame:
     """
     Calculates a weighted monthly sales forecast disaggregated to the SKU level.
+    Uses locked quarterly periods for consistency within quarters.
 
     Args:
         df_sales_hist (pd.DataFrame): DataFrame with historical sales data, including
@@ -114,26 +115,116 @@ def calculate_sku_ponderation(
     )[value_col].sum().reset_index()
     sku_monthly_sales = sku_monthly_sales.sort_values(date_col)
 
-    all_sku_forecasts = [] # List to store results for each period
+    # --- Determine Quarterly Reference Periods ---
+    # Group forecast months into quarters for locked period references
+    forecast_quarters = {}
+    for period in forecast_horizon:
+        # Determine which quarter the forecast period belongs to
+        quarter = (period.month - 1) // 3 + 1
+        year_quarter = f"{period.year}Q{quarter}"
+        if year_quarter not in forecast_quarters:
+            forecast_quarters[year_quarter] = []
+        forecast_quarters[year_quarter].append(period)
 
-    # --- Main Loop: Iterate through Forecast Horizon ---
+    # Create reference period information for each quarter
+    quarter_references = {}
+    latest_period = df_sales_hist[date_col].max()
+    print(f"Latest historical data period: {latest_period}")
+
+    for year_quarter, periods in forecast_quarters.items():
+        first_forecast_period = min(periods)
+        cutoff_period = first_forecast_period - 1  # End of previous month
+        
+        # Define reference periods for this quarter
+        ref_year = cutoff_period.year
+        ref_month = cutoff_period.month
+        
+        # Calculate 3-month window for SKU shares (previous quarter)
+        share_end_period = cutoff_period
+        share_start_period = cutoff_period - 2  # 3-month window
+        
+        quarter_references[year_quarter] = {
+            'cutoff_period': cutoff_period,
+            'share_start_period': share_start_period,
+            'share_end_period': share_end_period,
+            'historical_sales': fg_monthly_sales[fg_monthly_sales[date_col] <= cutoff_period],
+            'sku_shares': None  # Will be calculated below
+        }
+        
+        print(f"\nReference periods for {year_quarter}:")
+        print(f"  Cutoff: {cutoff_period}")
+        print(f"  Share window: {share_start_period} to {share_end_period}")
+
+    # --- Pre-calculate SKU Shares for Each Quarter ---
+    for year_quarter, ref_data in quarter_references.items():
+        share_start = ref_data['share_start_period']
+        share_end = ref_data['share_end_period']
+        
+        print(f"\nCalculating SKU shares for {year_quarter} based on {share_start} to {share_end}")
+        
+        # Filter historical SKU sales data for the quarter's share window
+        share_sales_window = sku_monthly_sales[
+            (sku_monthly_sales[date_col] >= share_start) &
+            (sku_monthly_sales[date_col] <= share_end)
+        ]
+
+        # Calculate Total Sales per SKU-FG over the quarter's window
+        sku_totals = share_sales_window.groupby(
+            [manager_col, family_col, sku_col]
+        )[value_col].sum()
+
+        # Calculate Total Sales per FG over the quarter's window
+        fg_totals = share_sales_window.groupby(
+            [manager_col, family_col]
+        )[value_col].sum()
+
+        # Calculate the share based on totals
+        calculated_sku_shares = {}  # {(manager, family, sku): share}
+        if not fg_totals.empty:
+            # Iterate through SKUs that had sales in the window
+            for index_tuple in sku_totals.index:
+                manager, family, sku = index_tuple  # Unpack the MultiIndex tuple
+                sku_total = sku_totals.loc[index_tuple]  # Get value using loc
+
+                # Get the corresponding FG total
+                fg_total = fg_totals.get((manager, family), 0)
+                if fg_total > 0:
+                    share = sku_total / fg_total
+                    calculated_sku_shares[(manager, family, sku)] = share
+
+        ref_data['sku_shares'] = calculated_sku_shares
+        print(f"  Calculated shares for {len(calculated_sku_shares)} SKU-FG combinations in {year_quarter}")
+
+    # --- Generate Forecasts by Month ---
+    all_sku_forecasts = []  # List to store results for each period
+
     for forecast_period in forecast_horizon:
         f_year = forecast_period.year
         f_month = forecast_period.month
-        cutoff_period = forecast_period - 1 # Last period of actuals available
-
-        print(f"\nCalculating forecast for: {forecast_period}")
-
+        
+        # Determine which quarter this forecast period belongs to
+        quarter = (f_month - 1) // 3 + 1
+        year_quarter = f"{f_year}Q{quarter}"
+        
+        if year_quarter not in quarter_references:
+            print(f"Error: Missing reference data for {year_quarter}. Skipping {forecast_period}.")
+            continue
+            
+        # Get reference data for this quarter
+        ref_data = quarter_references[year_quarter]
+        cutoff_period = ref_data['cutoff_period']
+        historical_fg_sales = ref_data['historical_sales']
+        calculated_sku_shares = ref_data['sku_shares']
+        
+        print(f"\nCalculating forecast for: {forecast_period} (part of {year_quarter})")
+        
         # --- 1. Calculate Família-Gestor (FG) Forecasts for forecast_period ---
         fg_forecasts_this_month = {}
-        historical_fg_sales = fg_monthly_sales[fg_monthly_sales[date_col] <= cutoff_period]
         manager_family_groups = fg_monthly_sales[[manager_col, family_col]].drop_duplicates().to_records(index=False)
 
         if historical_fg_sales.empty:
-             print(f"Warning: No historical FG sales data available up to {cutoff_period} to calculate FG forecasts for {forecast_period}. Skipping FG calc.")
-             # Continue to next forecast period? Or try to use only budget?
-             # For now, we can't calculate shares either, so skip month.
-             continue
+            print(f"Warning: No historical FG sales data available up to {cutoff_period}. Skipping {forecast_period}.")
+            continue
 
         print(f"  Calculating FG forecasts for {len(manager_family_groups)} groups...")
         for manager, family in manager_family_groups:
@@ -142,7 +233,7 @@ def calculate_sku_ponderation(
                 (historical_fg_sales[family_col] == family)
             ].set_index(date_col)[value_col]
 
-            # Calculate components based on group_hist up to cutoff_period
+            # Calculate components based on locked historical data up to cutoff_period
             avg_2023 = 0
             avg_ytd = 0
             avg_last_3 = 0
@@ -154,35 +245,48 @@ def calculate_sku_ponderation(
                 if not isinstance(group_hist.index, pd.PeriodIndex):
                     group_hist.index = group_hist.index.to_period('M')
 
+                # Average 2023: Always full 2023 data
                 sales_2023 = group_hist[group_hist.index.year == 2023]
                 avg_2023 = sales_2023.mean() if not sales_2023.empty else 0
 
-                current_calc_year = cutoff_period.year
-                ytd_sales = group_hist[group_hist.index.year == current_calc_year]
+                # Average YTD: All months up to cutoff in current year
+                cutoff_year = cutoff_period.year
+                ytd_months = cutoff_period.month
+                ytd_sales = group_hist[
+                    (group_hist.index.year == cutoff_year) & 
+                    (group_hist.index.month <= ytd_months)
+                ]
                 avg_ytd = ytd_sales.mean() if not ytd_sales.empty else 0
 
+                # Last 3 Months: Fixed 3-month window ending at cutoff
                 last_3_period_start = cutoff_period - 2
                 last_3_sales = group_hist[group_hist.index >= last_3_period_start]
                 avg_last_3 = last_3_sales.mean() if not last_3_sales.empty else 0
 
+                # Last 12 Months: Fixed 12-month window ending at cutoff
                 last_12_period_start = cutoff_period - 11
                 last_12_sales = group_hist[group_hist.index >= last_12_period_start]
                 avg_last_12 = last_12_sales.mean() if not last_12_sales.empty else 0
 
-                # CAGR Component Value Calculation
+                # CAGR Component: Special case - updates with each forecast month's YTD
+                # For this, we need to calculate the YTD including the forecast month
+                # if it were to become available
                 cagr = 0.0
-                if avg_2023 > 0:
-                    ratio = avg_ytd / avg_2023
-                    if ratio >= 0:
-                        try:
-                            cagr = (ratio ** 0.5) - 1 # User Formula
-                        except Exception:
-                            cagr = 0.0
-                    else:
+                forecast_ytd_month = min(f_month, 12)  # Cap at December for full year
+                
+                # Use the ratio between the YTD through forecast_month vs 2023 average
+                ratio = avg_ytd / avg_2023 if avg_2023 > 0 else 0
+                
+                # Calculate CAGR only if ratio is positive
+                if ratio > 0:
+                    try:
+                        cagr = (ratio ** 0.5) - 1  # User formula
+                    except Exception:
                         cagr = 0.0
+                
                 cagr_component_value = avg_2023 * (1 + cagr)
 
-            # Budget Component
+            # Budget Component: Always use the specific forecast month's budget
             budget_value = 0
             if budget_available:
                 budget_key = (manager, family, f_year, f_month)
@@ -201,83 +305,40 @@ def calculate_sku_ponderation(
             # Ensure forecast is not negative
             fg_forecasts_this_month[(manager, family)] = max(0, fg_forecast_value)
 
-        # --- 2. Calculate SKU Shares based on Total Sales in the 3-Month Window --- (MODIFIED LOGIC)
-        share_calculation_periods = pd.period_range(end=cutoff_period, periods=3, freq='M')
-        print(f"  Calculating SKU shares based on total sales in periods: {share_calculation_periods.tolist()}")
+        # --- 2. Disaggregate FG Forecasts Using Pre-calculated Quarterly SKU Shares ---
+        sku_forecasts_aggregated = {}  # {sku: total_forecast_value}
+        print(f"  Disaggregating {len(fg_forecasts_this_month)} FG forecasts using {year_quarter} shares...")
 
-        # Filter historical SKU sales data for the 3-month window
-        share_sales_window = sku_monthly_sales[
-            (sku_monthly_sales[date_col].isin(share_calculation_periods))
-        ]
-
-        # Calculate Total Sales per SKU-FG over the 3-month window
-        sku_totals_3m = share_sales_window.groupby(
-            [manager_col, family_col, sku_col]
-        )[value_col].sum()
-
-        # Calculate Total Sales per FG over the 3-month window
-        fg_totals_3m = share_sales_window.groupby(
-            [manager_col, family_col]
-        )[value_col].sum()
-
-        # Calculate the share based on totals
-        calculated_sku_shares = {} # {(manager, family, sku): share}
-        if not fg_totals_3m.empty:
-            # Iterate through SKUs that had sales in the window
-            # Iterate over the index directly and use .loc
-            for index_tuple in sku_totals_3m.index:
-                manager, family, sku = index_tuple # Unpack the MultiIndex tuple
-                sku_total = sku_totals_3m.loc[index_tuple] # Get value using loc
-
-                # Get the corresponding FG total
-                # Note: fg_totals_3m index is (manager, family)
-                fg_total = fg_totals_3m.get((manager, family), 0)
-                if fg_total > 0:
-                    share = sku_total / fg_total
-                    calculated_sku_shares[(manager, family, sku)] = share
-                # else: share is implicitly 0 if fg_total is 0
-
-        print(f"  Calculated shares for {len(calculated_sku_shares)} SKU-FG combinations based on 3-month totals.")
-
-        # --- 3. Disaggregate FG Forecasts and Aggregate by SKU ---
-        sku_forecasts_aggregated = {} # {sku: total_forecast_value}
-        print(f"  Disaggregating {len(fg_forecasts_this_month)} FG forecasts...")
-
-        # <<< START DEBUG SKU 50000067 for July 2024 >>>
+        # Debug target
         target_sku_debug = '50000067'
         target_period_debug = pd.Period('2024-07', freq='M')
-        # <<< END DEBUG SKU 50000067 >>>
-
+        
         for (manager, family), fg_forecast in fg_forecasts_this_month.items():
             if fg_forecast == 0:
-                continue # No forecast value to disaggregate
+                continue  # No forecast value to disaggregate
 
             # Inner loop: Find SKUs and their calculated shares corresponding to the current FG
-            # Uses the new 'calculated_sku_shares' dictionary
             for (m_key, f_key, sku_key), share in calculated_sku_shares.items():
                 # Check if the share belongs to the current FG group
                 if m_key == manager and f_key == family:
-                    if share > 0: # Use the calculated share
-                        # Disaggregate: Multiply FG forecast by the SKU's share of 3m totals
+                    if share > 0:  # Use the calculated share
+                        # Disaggregate: Multiply FG forecast by the SKU's share
                         disaggregated_value = fg_forecast * share
 
                         # Aggregate: Add this value to the SKU's total forecast for the period
                         sku_forecasts_aggregated[sku_key] = sku_forecasts_aggregated.get(sku_key, 0) + disaggregated_value
 
-                        # <<< START DEBUG SKU 50000067 for July 2024 >>>
+                        # Debug output for specific SKU/period if requested
                         if forecast_period == target_period_debug and sku_key == target_sku_debug:
                             print(f"    DEBUG [{target_sku_debug} @ {forecast_period}]:")
                             print(f"      - Combo FG: ({manager}, {family})")
                             print(f"      - Previsão FG: {fg_forecast:.2f}")
-                            print(f"      - Share SKU (média Abr-Jun): {share:.4f}")
+                            print(f"      - Share SKU ({ref_data['share_start_period']}-{ref_data['share_end_period']}): {share:.4f}")
                             print(f"      - Valor Desagregado Contribuído: {disaggregated_value:.2f}")
-                        # <<< END DEBUG SKU 50000067 >>>
 
         print(f"  Aggregated forecasts for {len(sku_forecasts_aggregated)} unique SKUs for {forecast_period}.")
 
-        # --- Explicitly Add Zero Forecasts (MODIFIED LOGIC) ---
-        # Identify all SKUs that belong to the FG groups processed in this period
-        # Use sku_monthly_sales which retains the SKU column
+        # --- Explicitly Add Zero Forecasts for Active SKUs ---
         relevant_fg_tuples = list(fg_forecasts_this_month.keys())
         relevant_sku_data = sku_monthly_sales[
             sku_monthly_sales[[manager_col, family_col]].apply(tuple, axis=1).isin(relevant_fg_tuples)
@@ -288,21 +349,19 @@ def calculate_sku_ponderation(
         for sku in active_skus_in_period_fgs:
             if sku not in sku_forecasts_aggregated:
                 # This SKU belongs to a relevant FG but didn't get a value
-                # (likely due to zero share in the 3m window or zero sales in 2024 filter)
                 sku_forecasts_aggregated[sku] = 0.0
                 zero_forecast_skus_added += 1
 
         if zero_forecast_skus_added > 0:
             print(f"  Added {zero_forecast_skus_added} SKUs with zero forecast for {forecast_period}.")
 
-        # <<< START DEBUG SKU 50000067 for July 2024 >>>
+        # Debug output for target SKU
         if forecast_period == target_period_debug and target_sku_debug in sku_forecasts_aggregated:
             final_agg_value = sku_forecasts_aggregated[target_sku_debug]
             print(f"    DEBUG [{target_sku_debug} @ {forecast_period}]: Valor Final Agregado = {final_agg_value:.2f}")
-            print("    ---------------------------------------------------") # Separator
-        # <<< END DEBUG SKU 50000067 >>>
+            print("    ---------------------------------------------------")  # Separator
 
-        # --- 4. Store Results for this Period ---
+        # --- Store Results for this Period ---
         if sku_forecasts_aggregated:
             period_results = pd.DataFrame({
                 sku_col: list(sku_forecasts_aggregated.keys()),
@@ -311,7 +370,7 @@ def calculate_sku_ponderation(
             period_results[date_col] = forecast_period
             all_sku_forecasts.append(period_results[[sku_col, date_col, 'forecast_value']])
         else:
-             print(f"  No final SKU forecasts generated for {forecast_period}.")
+            print(f"  No final SKU forecasts generated for {forecast_period}.")
 
     # --- Final Output ---
     if not all_sku_forecasts:
@@ -415,9 +474,9 @@ if __name__ == '__main__':
     }
 
     # Define forecast horizon
-    horizon = pd.period_range(start='2024-07', end='2024-09', freq='M')
+    horizon = pd.period_range(start='2024-07', end='2024-12', freq='M')
 
-    print("--- Running SKU Ponderation Example ---")
+    print("--- Running SKU Ponderation Example with Locked Quarterly Periods ---")
     forecast_df = calculate_sku_ponderation(
         df_sales_hist=dummy_sales_df,
         df_budget=dummy_budget_df,
@@ -434,8 +493,11 @@ if __name__ == '__main__':
     print("\n--- Forecast Results ---")
     print(forecast_df)
 
-    # Check a specific SKU that was in multiple groups
-    print("\n--- Forecast for SKU001 ---")
-    print(forecast_df[forecast_df['sku'] == 'SKU001'])
-    print("\n--- Forecast for SKU004 ---")
-    print(forecast_df[forecast_df['sku'] == 'SKU004']) 
+    # Check forecasts by quarter to verify consistency within quarters
+    print("\n--- Q3 2024 Forecasts (Jul-Sep) ---")
+    q3_forecasts = forecast_df[forecast_df['Period'].isin(pd.period_range('2024-07', '2024-09', freq='M'))]
+    print(q3_forecasts)
+    
+    print("\n--- Q4 2024 Forecasts (Oct-Dec) ---")
+    q4_forecasts = forecast_df[forecast_df['Period'].isin(pd.period_range('2024-10', '2024-12', freq='M'))]
+    print(q4_forecasts) 

@@ -16,6 +16,10 @@ from .analysis.arima_forecast import calculate_arima
 from .analysis.ses_forecast import calculate_ses
 from .analysis.sma_forecast import calculate_sma
 from .analysis.tsb_forecast import calculate_tsb
+# Import the XGBoost forecasting function
+from .analysis.xgboost_forecast import calculate_xgboost
+# Import the Linear Regression forecasting function
+from .analysis.linear_regression_forecast import calculate_linear_regression
 # Import the new SKU ponderation function
 from .analysis.sku_ponderation import calculate_sku_ponderation
 # Import budget loader (assuming it exists and handles errors)
@@ -101,6 +105,28 @@ def _parse_method_string(method_str: str) -> Tuple[Optional[str], Dict[str, Any]
             params['alpha_p'] = float(tsb_match.group(3)) # Group 3 captures the second float
         except Exception as e:
             print(f"Error parsing TSB parameters from string: {method_str}. Error: {e}")
+            return None, {} # Return None if parsing fails
+        return method_name, params
+
+    # XGBoost pattern: e.g., "XGBoost (lags=3)"
+    xgboost_match = re.match(r'XGBoost\s*\(lags=(\d+)\)', method_str, re.IGNORECASE)
+    if xgboost_match:
+        method_name = 'XGBoost'
+        try:
+            params['n_lags'] = int(xgboost_match.group(1))
+        except Exception:
+            print(f"Error parsing XGBoost lags from string: {method_str}")
+            return None, {} # Return None if parsing fails
+        return method_name, params
+
+    # Linear Regression pattern: e.g., "Linear Regression (lags=3)"
+    linear_regression_match = re.match(r'Linear\s*Regression\s*\(lags=(\d+)\)', method_str, re.IGNORECASE)
+    if linear_regression_match:
+        method_name = 'LinearRegression'
+        try:
+            params['n_lags'] = int(linear_regression_match.group(1))
+        except Exception:
+            print(f"Error parsing Linear Regression lags from string: {method_str}")
             return None, {} # Return None if parsing fails
         return method_name, params
 
@@ -299,6 +325,10 @@ def generate_forecasts(
                     forecast_result = calculate_sma(sku_series, params['n'], forecast_horizon)
                 elif method_name == 'TSB':
                     forecast_result = calculate_tsb(sku_series, params['alpha_d'], params['alpha_p'], forecast_horizon)
+                elif method_name == 'XGBoost':
+                    forecast_result = calculate_xgboost(sku_series, params['n_lags'], forecast_horizon)
+                elif method_name == 'LinearRegression':
+                    forecast_result = calculate_linear_regression(sku_series, params['n_lags'], forecast_horizon)
                 # PonderadaSKU is handled outside this loop
 
                 if forecast_result is not None and not forecast_result.empty and not forecast_result.isna().all():

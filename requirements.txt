@@ -7,3 +7,5 @@ xlrd==2.0.1
 python-dotenv==1.0.0
 statsmodels>=0.13.0
 statsforecast 
+xgboost>=1.7.0
+scikit-learn>=1.0.0 

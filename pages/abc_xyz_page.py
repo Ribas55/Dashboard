@@ -209,12 +209,12 @@ def render():
     if view_matrix_button:
         st.session_state.abc_xyz_button_clicked = True
         with st.spinner("Calculando classificação ABC/XYZ..."):
-            # Calculate ABC/XYZ classification with filters
-            abc_xyz_data = get_abc_xyz_data(
+            # Calculate ABC/XYZ classification for ALL SKUs first (no market type filtering)
+            abc_xyz_data_all = get_abc_xyz_data(
                 df=df_filtered,
                 family_filter=selected_family if selected_family != "Todas" else None,
                 subfamily_filter=selected_subfamily if selected_subfamily != "Todas" else None,
-                market_type=selected_market,
+                market_type="Todos",  # Always calculate for all SKUs first
                 mercado_especifico_skus=st.session_state.mercado_especifico_skus,
                 a_threshold=a_threshold/100,  # Convert percentage to decimal
                 b_threshold=b_threshold/100,  # Convert percentage to decimal
@@ -222,12 +222,31 @@ def render():
                 y_threshold=y_threshold/100   # Convert percentage to decimal
             )
             
-            # Store the data for reuse
+            # If no data found with the current filters
+            if abc_xyz_data_all.empty:
+                st.warning("Não foram encontrados SKUs com os filtros selecionados.")
+                st.session_state.abc_xyz_button_clicked = False  # Reset para false quando não há dados
+                return
+            
+            # Now filter the results by market type (without recalculating ABC/XYZ)
+            if selected_market == "Normal":
+                # Show only SKUs NOT in mercado específico
+                mercado_especifico_set = set(str(sku) for sku in st.session_state.mercado_especifico_skus)
+                abc_xyz_data = abc_xyz_data_all[~abc_xyz_data_all['sku'].astype(str).isin(mercado_especifico_set)]
+            elif selected_market == "Mercado Específico":
+                # Show only SKUs IN mercado específico
+                mercado_especifico_set = set(str(sku) for sku in st.session_state.mercado_especifico_skus)
+                abc_xyz_data = abc_xyz_data_all[abc_xyz_data_all['sku'].astype(str).isin(mercado_especifico_set)]
+            else:
+                # Show all SKUs
+                abc_xyz_data = abc_xyz_data_all
+            
+            # Store the filtered data for reuse
             st.session_state.abc_xyz_data = abc_xyz_data
             
-            # If no data found with the current filters
+            # If no data found after market type filtering
             if abc_xyz_data.empty:
-                st.warning("Não foram encontrados SKUs com os filtros selecionados.")
+                st.warning(f"Não foram encontrados SKUs para o tipo de mercado '{selected_market}' com os filtros selecionados.")
                 st.session_state.abc_xyz_button_clicked = False  # Reset para false quando não há dados
                 return
     
