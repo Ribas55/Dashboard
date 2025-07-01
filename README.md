@@ -49,7 +49,7 @@ O sistema foi especialmente projetado para o setor de **produtos alimentícios**
 ### 5. **Métodos de Previsão**
 - **Simple Moving Average (SMA)**
 - **Single Exponential Smoothing (SES)**
-- **Triple Exponential Smoothing (Holt-Winters)**
+- **TSB (Teunter-Syntetos-Babai)**: Especializado para previsão de demanda intermitente
 - **ARIMA**: Modelos auto-regressivos integrados
 - **Linear Regression**: Regressão linear com tendências
 - **XGBoost**: Machine learning para previsões avançadas
